@@ -11,13 +11,13 @@ namespace HotelBooking.UnitTests
 {
     public class CustomersControllerTests
     {
-        private readonly Mock<IRepository<Customer>> mockRepository;
-        private readonly CustomersController controller;
+        private CustomersController controller;
+        private Mock<IRepository<Customer>> fakeCustomerRepository;
 
         public CustomersControllerTests()
         {
-            mockRepository = new Mock<IRepository<Customer>>();
-            controller = new CustomersController(mockRepository.Object);
+            fakeCustomerRepository = new Mock<IRepository<Customer>>();
+            controller = new CustomersController(fakeCustomerRepository.Object);
         }
 
         // Test data for different customer scenarios

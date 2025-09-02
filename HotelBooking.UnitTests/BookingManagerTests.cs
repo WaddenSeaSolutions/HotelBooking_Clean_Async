@@ -4,6 +4,7 @@ using HotelBooking.UnitTests.Fakes;
 using Xunit;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 
 namespace HotelBooking.UnitTests
@@ -66,6 +67,52 @@ namespace HotelBooking.UnitTests
             // Assert
             Assert.Empty(bookingForReturnedRoomId);
         }
+
+        [Fact]
+        public async Task GetFullyOccupiedDates_StartDateLaterThanEndDate_ThrowsArgumentException()
+        {
+            DateTime startDate = DateTime.Today.AddDays(2);
+            DateTime endDate = DateTime.Today.AddDays(1);
+
+            Task result() => bookingManager.GetFullyOccupiedDates(startDate, endDate);
+
+            await Assert.ThrowsAsync<ArgumentException>(result);
+        }
+
+        [Fact]
+        public async Task GetFullyOccupiedDates_NoRoomsExist_ReturnsEmptyList()
+        {
+            DateTime startDate = DateTime.Today;
+            DateTime endDate = DateTime.Today.AddDays(5);
+
+            var result = await bookingManager.GetFullyOccupiedDates(startDate, endDate);
+
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public async Task GetFullyOccupiedDates_NoBookingsExist_ReturnsEmptyList()
+        {
+            DateTime startDate = DateTime.Today;
+            DateTime endDate = DateTime.Today.AddDays(5);
+
+            var result = await bookingManager.GetFullyOccupiedDates(startDate, endDate);
+
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public async Task GetFullyOccupiedDates_MultipleBookingsOverlap_AllDatesFullyOccupied()
+        {
+            DateTime startDate = DateTime.Today;
+            DateTime endDate = DateTime.Today.AddDays(2);
+
+            var result = await bookingManager.GetFullyOccupiedDates(startDate, endDate);
+
+            Assert.Equal(new List<DateTime> { startDate, startDate.AddDays(1), startDate.AddDays(2) }, result);
+        }
+
+
 
     }
 }

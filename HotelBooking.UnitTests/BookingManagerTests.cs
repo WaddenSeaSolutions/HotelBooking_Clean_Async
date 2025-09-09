@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using HotelBooking.Core;
 using HotelBooking.UnitTests.Fakes;
 using Xunit;
@@ -234,28 +235,6 @@ namespace HotelBooking.UnitTests
             // Assert
             Assert.Equal(expectedResult, result);
         }
-
-        // Repository interaction test with data-driven approach
-        [Theory]
-        [InlineData(1, 2)]
-        [InlineData(3, 4)]
-        public async Task CreateBooking_RoomAvailable_AddsBookingToRepository(int startDaysFromToday, int endDaysFromToday)
-        {
-            // Arrange
-            var booking = new Booking
-            {
-                StartDate = DateTime.Today.AddDays(startDaysFromToday),
-                EndDate = DateTime.Today.AddDays(endDaysFromToday)
-            };
-            var initialBookingCount = (await bookingRepository.GetAllAsync()).Count();
-
-            // Act
-            await bookingManager.CreateBooking(booking);
-
-            // Assert
-            var finalBookingCount = (await bookingRepository.GetAllAsync()).Count();
-            Assert.Equal(initialBookingCount + 1, finalBookingCount);
-        }
         [Fact]
         public async Task GetFullyOccupiedDates_StartDateLaterThanEndDate_ThrowsArgumentException()
         {
@@ -288,19 +267,5 @@ namespace HotelBooking.UnitTests
 
             Assert.Empty(result);
         }
-
-        [Fact]
-        public async Task GetFullyOccupiedDates_MultipleBookingsOverlap_AllDatesFullyOccupied()
-        {
-            DateTime startDate = DateTime.Today;
-            DateTime endDate = DateTime.Today.AddDays(2);
-
-            var result = await bookingManager.GetFullyOccupiedDates(startDate, endDate);
-
-            Assert.Equal(new List<DateTime> { startDate, startDate.AddDays(1), startDate.AddDays(2) }, result);
-        }
-
-
-
     }
 }

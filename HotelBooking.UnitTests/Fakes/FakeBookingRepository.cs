@@ -74,5 +74,6 @@ namespace HotelBooking.UnitTests.Fakes
             removeWasCalled = true;
             return Task.CompletedTask;
         }
+        
     }
 }

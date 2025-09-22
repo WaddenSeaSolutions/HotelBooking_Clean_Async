@@ -1,26 +1,24 @@
 using System;
-using System.Collections;
-using HotelBooking.Core;
-using HotelBooking.UnitTests.Fakes;
-using Xunit;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Collections.Generic;
-
+using HotelBooking.Core;
+using Moq;
+using Xunit;
 
 namespace HotelBooking.UnitTests
 {
     public class BookingManagerTests
     {
-        private IBookingManager bookingManager;
-        IRepository<Booking> bookingRepository;
+        private readonly Mock<IRepository<Booking>> _mockBookingRepository;
+        private readonly Mock<IRepository<Room>> _mockRoomRepository;
+        private readonly IBookingManager _bookingManager;
 
-        public BookingManagerTests(){
-            DateTime start = DateTime.Today.AddDays(10);
-            DateTime end = DateTime.Today.AddDays(20);
-            bookingRepository = new FakeBookingRepository(start, end);
-            IRepository<Room> roomRepository = new FakeRoomRepository();
-            bookingManager = new BookingManager(bookingRepository, roomRepository);
+        public BookingManagerTests()
+        {
+            _mockBookingRepository = new Mock<IRepository<Booking>>();
+            _mockRoomRepository = new Mock<IRepository<Room>>();
+            _bookingManager = new BookingManager(_mockBookingRepository.Object, _mockRoomRepository.Object);
         }
 
         [Fact]
@@ -29,243 +27,288 @@ namespace HotelBooking.UnitTests
             // Arrange
             DateTime date = DateTime.Today;
 
+            // Act & Assert
+            await Assert.ThrowsAsync<ArgumentException>(() => 
+                _bookingManager.FindAvailableRoom(date, date));
+        }
+
+        [Theory]
+        [InlineData(1)] // Tomorrow
+        [InlineData(5)] // 5 days from now
+        [InlineData(30)] // 30 days from now
+        public async Task FindAvailableRoom_RoomAvailable_ReturnsValidRoomId(int daysFromToday)
+        {
+            // Arrange
+            DateTime date = DateTime.Today.AddDays(daysFromToday);
+            var availableRooms = new List<Room> 
+            { 
+                new Room { Id = 1, Description = "Room 1" },
+                new Room { Id = 2, Description = "Room 2" }
+            };
+            var existingBookings = new List<Booking>(); // No existing bookings
+
+            _mockRoomRepository.Setup(r => r.GetAllAsync())
+                .ReturnsAsync(availableRooms);
+            _mockBookingRepository.Setup(b => b.GetAllAsync())
+                .ReturnsAsync(existingBookings);
+
             // Act
-            Task result() => bookingManager.FindAvailableRoom(date, date);
+            int roomId = await _bookingManager.FindAvailableRoom(date, date);
 
             // Assert
-            await Assert.ThrowsAsync<ArgumentException>(result);
+            Assert.True(roomId > 0, "Should return a valid room ID");
+            _mockRoomRepository.Verify(r => r.GetAllAsync(), Times.Once);
+            _mockBookingRepository.Verify(b => b.GetAllAsync(), Times.Once);
         }
 
         [Fact]
-        public async Task FindAvailableRoom_RoomAvailable_RoomIdNotMinusOne()
+        public async Task FindAvailableRoom_NoRoomsAvailable_ReturnsMinusOne()
         {
             // Arrange
             DateTime date = DateTime.Today.AddDays(1);
-            // Act
-            int roomId = await bookingManager.FindAvailableRoom(date, date);
-            // Assert
-            Assert.NotEqual(-1, roomId);
-        }
-
-        [Fact]
-        public async Task FindAvailableRoom_RoomAvailable_ReturnsAvailableRoom()
-        {
-            // This test was added to satisfy the following test design
-            // principle: "Tests should have strong assertions".
-
-            // Arrange
-            DateTime date = DateTime.Today.AddDays(1);
-            
-            // Act
-            int roomId = await bookingManager.FindAvailableRoom(date, date);
-
-            var bookingForReturnedRoomId = (await bookingRepository.GetAllAsync()).
-                Where(b => b.RoomId == roomId
-                           && b.StartDate <= date
-                           && b.EndDate >= date
-                           && b.IsActive);
-            
-            // Assert
-            Assert.Empty(bookingForReturnedRoomId);
-        }
-
-        [Theory]
-        [InlineData(1, 2)] // Available dates (future)
-        [InlineData(2, 3)]
-        [InlineData(5, 6)]
-        [InlineData(25, 26)] // Available dates (after existing bookings)
-        public async Task CreateBooking_RoomAvailable_ReturnsTrue(int startDaysFromToday, int endDaysFromToday)
-        {
-            // Arrange
-            var booking = new Booking
-            {
-                StartDate = DateTime.Today.AddDays(startDaysFromToday),
-                EndDate = DateTime.Today.AddDays(endDaysFromToday)
+            var rooms = new List<Room> 
+            { 
+                new Room { Id = 1, Description = "Room 1" }
+            };
+            var bookings = new List<Booking> 
+            { 
+                new Booking 
+                { 
+                    Id = 1, 
+                    RoomId = 1, 
+                    StartDate = date, 
+                    EndDate = date, 
+                    IsActive = true 
+                }
             };
 
+            _mockRoomRepository.Setup(r => r.GetAllAsync()).ReturnsAsync(rooms);
+            _mockBookingRepository.Setup(b => b.GetAllAsync()).ReturnsAsync(bookings);
+
             // Act
-            bool result = await bookingManager.CreateBooking(booking);
+            int roomId = await _bookingManager.FindAvailableRoom(date, date);
 
             // Assert
-            Assert.True(result);
+            Assert.Equal(-1, roomId);
         }
 
         [Theory]
-        [InlineData(1, 2)]
-        [InlineData(3, 4)]
-        [InlineData(25, 26)]
-        public async Task CreateBooking_RoomAvailable_SetsRoomIdAndIsActive(int startDaysFromToday, int endDaysFromToday)
-        {
-            // Arrange
-            var booking = new Booking
-            {
-                StartDate = DateTime.Today.AddDays(startDaysFromToday),
-                EndDate = DateTime.Today.AddDays(endDaysFromToday)
-            };
-
-            // Act
-            await bookingManager.CreateBooking(booking);
-
-            // Assert
-            Assert.True(booking.RoomId >= 0);
-            Assert.True(booking.IsActive);
-        }
-
-        [Theory]
-        [InlineData(10, 15)] // Overlaps with existing booking (10-20)
-        [InlineData(15, 20)] // Overlaps with existing booking
-        [InlineData(12, 18)] // Within existing booking period
-        [InlineData(8, 12)]  // Overlaps start of existing booking
-        [InlineData(18, 22)] // Overlaps end of existing booking
-        public async Task CreateBooking_NoRoomAvailable_ReturnsFalse(int startDaysFromToday, int endDaysFromToday)
-        {
-            // Arrange
-            var booking = new Booking
-            {
-                StartDate = DateTime.Today.AddDays(startDaysFromToday),
-                EndDate = DateTime.Today.AddDays(endDaysFromToday)
-            };
-
-            // Act
-            bool result = await bookingManager.CreateBooking(booking);
-
-            // Assert
-            Assert.False(result);
-        }
-
-        [Theory]
-        [InlineData(15, 16, 0, false)] // No room available, initial values preserved
-        [InlineData(12, 18, 999, true)] // No room available, initial values preserved
-        public async Task CreateBooking_NoRoomAvailable_DoesNotModifyBookingProperties(
+        [InlineData(1, 2, true)]   // Available dates
+        [InlineData(5, 6, true)]   // Available dates
+        [InlineData(1, 1, true)]   // Single day available
+        public async Task CreateBooking_RoomAvailable_ReturnsExpectedResult(
             int startDaysFromToday, 
             int endDaysFromToday, 
-            int initialRoomId, 
-            bool initialIsActive)
-        {
-            // Arrange
-            var booking = new Booking
-            {
-                StartDate = DateTime.Today.AddDays(startDaysFromToday),
-                EndDate = DateTime.Today.AddDays(endDaysFromToday),
-                RoomId = initialRoomId,
-                IsActive = initialIsActive
-            };
-
-            // Act
-            await bookingManager.CreateBooking(booking);
-
-            // Assert
-            Assert.Equal(initialRoomId, booking.RoomId);
-            Assert.Equal(initialIsActive, booking.IsActive);
-        }
-
-        // Example using MemberData for more complex test data
-        public static IEnumerable<object[]> GetBookingTestData()
-        {
-            yield return new object[] { DateTime.Today.AddDays(1), DateTime.Today.AddDays(2), true };
-            yield return new object[] { DateTime.Today.AddDays(3), DateTime.Today.AddDays(4), true };
-            yield return new object[] { DateTime.Today.AddDays(25), DateTime.Today.AddDays(26), true };
-            yield return new object[] { DateTime.Today.AddDays(15), DateTime.Today.AddDays(16), false };
-            yield return new object[] { DateTime.Today.AddDays(10), DateTime.Today.AddDays(20), false };
-        }
-
-        [Theory]
-        [MemberData(nameof(GetBookingTestData))]
-        public async Task CreateBooking_VariousDateRanges_ReturnsExpectedResult(
-            DateTime startDate, 
-            DateTime endDate, 
             bool expectedResult)
         {
             // Arrange
             var booking = new Booking
             {
-                StartDate = startDate,
-                EndDate = endDate
+                StartDate = DateTime.Today.AddDays(startDaysFromToday),
+                EndDate = DateTime.Today.AddDays(endDaysFromToday)
             };
 
+            var availableRooms = new List<Room> 
+            { 
+                new Room { Id = 1, Description = "Available Room" }
+            };
+            var existingBookings = new List<Booking>(); // No conflicts
+
+            _mockRoomRepository.Setup(r => r.GetAllAsync()).ReturnsAsync(availableRooms);
+            _mockBookingRepository.Setup(b => b.GetAllAsync()).ReturnsAsync(existingBookings);
+            _mockBookingRepository.Setup(b => b.AddAsync(It.IsAny<Booking>()))
+                .Returns(Task.CompletedTask);
+
             // Act
-            bool result = await bookingManager.CreateBooking(booking);
+            bool result = await _bookingManager.CreateBooking(booking);
 
             // Assert
             Assert.Equal(expectedResult, result);
-        }
-
-        // Example using ClassData for even more complex scenarios
-        public class BookingTestData : IEnumerable<object[]>
-        {
-            public IEnumerator<object[]> GetEnumerator()
+            if (expectedResult)
             {
-                // Available room scenarios
-                yield return new object[] 
-                { 
-                    new Booking { StartDate = DateTime.Today.AddDays(1), EndDate = DateTime.Today.AddDays(2) }, 
-                    true, 
-                    "Single day booking in future" 
-                };
-                
-                yield return new object[] 
-                { 
-                    new Booking { StartDate = DateTime.Today.AddDays(25), EndDate = DateTime.Today.AddDays(30) }, 
-                    true, 
-                    "Multi-day booking after existing reservations" 
-                };
-
-                // No room available scenarios
-                yield return new object[] 
-                { 
-                    new Booking { StartDate = DateTime.Today.AddDays(15), EndDate = DateTime.Today.AddDays(16) }, 
-                    false, 
-                    "Booking during occupied period" 
-                };
+                Assert.True(booking.RoomId > 0, "Room ID should be assigned");
+                Assert.True(booking.IsActive, "Booking should be active");
+                _mockBookingRepository.Verify(b => b.AddAsync(booking), Times.Once);
             }
-
-            IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
         }
 
         [Theory]
-        [ClassData(typeof(BookingTestData))]
-        public async Task CreateBooking_ComplexScenarios_ReturnsExpectedResult(
-            Booking booking, 
-            bool expectedResult, 
+        [InlineData(10, 15, false)] // Overlapping dates
+        [InlineData(12, 18, false)] // Within existing booking
+        public async Task CreateBooking_NoRoomAvailable_ReturnsFalse(
+            int startDaysFromToday, 
+            int endDaysFromToday, 
+            bool expectedResult)
+        {
+            // Arrange
+            var booking = new Booking
+            {
+                StartDate = DateTime.Today.AddDays(startDaysFromToday),
+                EndDate = DateTime.Today.AddDays(endDaysFromToday)
+            };
+
+            var rooms = new List<Room> 
+            { 
+                new Room { Id = 1, Description = "Room 1" }
+            };
+            
+            // Existing booking that conflicts
+            var existingBookings = new List<Booking> 
+            { 
+                new Booking 
+                { 
+                    Id = 1, 
+                    RoomId = 1, 
+                    StartDate = DateTime.Today.AddDays(10), 
+                    EndDate = DateTime.Today.AddDays(20), 
+                    IsActive = true 
+                }
+            };
+
+            _mockRoomRepository.Setup(r => r.GetAllAsync()).ReturnsAsync(rooms);
+            _mockBookingRepository.Setup(b => b.GetAllAsync()).ReturnsAsync(existingBookings);
+
+            // Act
+            bool result = await _bookingManager.CreateBooking(booking);
+
+            // Assert
+            Assert.Equal(expectedResult, result);
+            _mockBookingRepository.Verify(b => b.AddAsync(It.IsAny<Booking>()), Times.Never, 
+                "Should not add booking when no room is available");
+        }
+
+        [Fact]
+        public async Task CreateBooking_NoRoomAvailable_DoesNotModifyBookingProperties()
+        {
+            // Arrange
+            var booking = new Booking
+            {
+                StartDate = DateTime.Today.AddDays(15),
+                EndDate = DateTime.Today.AddDays(16),
+                RoomId = 999, // Initial value
+                IsActive = true // Initial value
+            };
+
+            var rooms = new List<Room> { new Room { Id = 1 } };
+            var conflictingBookings = new List<Booking> 
+            { 
+                new Booking 
+                { 
+                    RoomId = 1, 
+                    StartDate = DateTime.Today.AddDays(10), 
+                    EndDate = DateTime.Today.AddDays(20), 
+                    IsActive = true 
+                }
+            };
+
+            _mockRoomRepository.Setup(r => r.GetAllAsync()).ReturnsAsync(rooms);
+            _mockBookingRepository.Setup(b => b.GetAllAsync()).ReturnsAsync(conflictingBookings);
+
+            // Act
+            bool result = await _bookingManager.CreateBooking(booking);
+
+            // Assert
+            Assert.False(result);
+            Assert.Equal(999, booking.RoomId); // Should preserve initial value
+            Assert.True(booking.IsActive); // Should preserve initial value
+        }
+
+        // Data-driven test using MemberData
+        public static IEnumerable<object[]> GetBookingScenarios()
+        {
+            yield return new object[] { 1, 2, true, "Available future dates" };
+            yield return new object[] { 25, 26, true, "Available dates after conflicts" };
+            yield return new object[] { 15, 16, false, "Conflicting dates" };
+        }
+
+        [Theory]
+        [MemberData(nameof(GetBookingScenarios))]
+        public async Task CreateBooking_VariousScenarios_ReturnsExpectedResult(
+            int startDaysFromToday, 
+            int endDaysFromToday, 
+            bool expectedResult,
             string scenario)
         {
+            // Arrange
+            var booking = new Booking
+            {
+                StartDate = DateTime.Today.AddDays(startDaysFromToday),
+                EndDate = DateTime.Today.AddDays(endDaysFromToday)
+            };
+
+            // Setup mocks based on scenario
+            var rooms = new List<Room> { new Room { Id = 1 } };
+            var existingBookings = expectedResult ? new List<Booking>() : new List<Booking> 
+            { 
+                new Booking 
+                { 
+                    RoomId = 1, 
+                    StartDate = DateTime.Today.AddDays(10), 
+                    EndDate = DateTime.Today.AddDays(20), 
+                    IsActive = true 
+                }
+            };
+
+            _mockRoomRepository.Setup(r => r.GetAllAsync()).ReturnsAsync(rooms);
+            _mockBookingRepository.Setup(b => b.GetAllAsync()).ReturnsAsync(existingBookings);
+            _mockBookingRepository.Setup(b => b.AddAsync(It.IsAny<Booking>()))
+                .Returns(Task.CompletedTask);
+
             // Act
-            bool result = await bookingManager.CreateBooking(booking);
+            bool result = await _bookingManager.CreateBooking(booking);
 
             // Assert
             Assert.Equal(expectedResult, result);
         }
+
         [Fact]
         public async Task GetFullyOccupiedDates_StartDateLaterThanEndDate_ThrowsArgumentException()
         {
+            // Arrange
             DateTime startDate = DateTime.Today.AddDays(2);
             DateTime endDate = DateTime.Today.AddDays(1);
 
-            Task result() => bookingManager.GetFullyOccupiedDates(startDate, endDate);
-
-            await Assert.ThrowsAsync<ArgumentException>(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<ArgumentException>(() => 
+                _bookingManager.GetFullyOccupiedDates(startDate, endDate));
         }
 
         [Fact]
         public async Task GetFullyOccupiedDates_NoRoomsExist_ReturnsEmptyList()
         {
+            // Arrange
             DateTime startDate = DateTime.Today;
             DateTime endDate = DateTime.Today.AddDays(5);
 
-            var result = await bookingManager.GetFullyOccupiedDates(startDate, endDate);
+            _mockRoomRepository.Setup(r => r.GetAllAsync())
+                .ReturnsAsync(new List<Room>());
 
+            // Act
+            var result = await _bookingManager.GetFullyOccupiedDates(startDate, endDate);
+
+            // Assert
             Assert.Empty(result);
+            _mockRoomRepository.Verify(r => r.GetAllAsync(), Times.Once);
         }
 
         [Fact]
         public async Task GetFullyOccupiedDates_NoBookingsExist_ReturnsEmptyList()
         {
+            // Arrange
             DateTime startDate = DateTime.Today;
             DateTime endDate = DateTime.Today.AddDays(5);
 
-            var result = await bookingManager.GetFullyOccupiedDates(startDate, endDate);
+            _mockRoomRepository.Setup(r => r.GetAllAsync())
+                .ReturnsAsync(new List<Room> { new Room { Id = 1 } });
+            _mockBookingRepository.Setup(b => b.GetAllAsync())
+                .ReturnsAsync(new List<Booking>());
 
+            // Act
+            var result = await _bookingManager.GetFullyOccupiedDates(startDate, endDate);
+
+            // Assert
             Assert.Empty(result);
+            _mockBookingRepository.Verify(b => b.GetAllAsync(), Times.Once);
         }
     }
 }

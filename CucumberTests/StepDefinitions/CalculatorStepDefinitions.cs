@@ -1,6 +1,6 @@
 using Reqnroll;
 using System;
-using FluentAssertions; // for nice assertions
+using FluentAssertions;
 
 namespace CucumberTests.StepDefinitions;
 

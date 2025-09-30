@@ -1,62 +1,35 @@
-using Reqnroll;
-using System;
-using FluentAssertions; // for nice assertions
+using Reqnroll  ;
 
 namespace CucumberTests.StepDefinitions;
 
 [Binding]
-public sealed class BookingStepDefinitions
+public sealed class CalculatorStepDefinitions
 {
-    private DateTime _startDate;
-    private DateTime _endDate;
-    private bool _roomAvailable;
-    private bool _bookingCreated;
+    // For additional details on Reqnroll step definitions see https://go.reqnroll.net/doc-stepdef
+    int firstNumber, secondNumber, sum;
+    Calculator calculator = new Calculator();
 
-    [Given(@"at least one room is available from ""(.*)"" to ""(.*)""")]
-    public void GivenAtLeastOneRoomIsAvailableFromTo(string startDate, string endDate)
+    [Given("the first number is {int}")]
+    public void GivenTheFirstNumberIs(int number)
     {
-        _startDate = DateTime.Parse(startDate);
-        _endDate = DateTime.Parse(endDate);
-
-        // simulate that at least one room is available
-        _roomAvailable = true;
+        firstNumber = number;
     }
 
-    [When(@"I navigate to the Create Booking page")]
-    public void WhenINavigateToTheCreateBookingPage()
+    [Given("the second number is {int}")]
+    public void GivenTheSecondNumberIs(int number)
     {
-        // Here you would simulate navigation in your app
-        // (e.g. opening a page or calling an API endpoint)
+        secondNumber = number;
     }
 
-    [When(@"I enter the start date ""(.*)""")]
-    public void WhenIEnterTheStartDate(string startDate)
+    [When("the two numbers are added")]
+    public void WhenTheTwoNumbersAreAdded()
     {
-        _startDate = DateTime.Parse(startDate);
+        sum = calculator.Add(firstNumber, secondNumber);
     }
 
-    [When(@"I enter the end date ""(.*)""")]
-    public void WhenIEnterTheEndDate(string endDate)
+    [Then("the result should be {int}")]
+    public void ThenTheResultShouldBe(int result)
     {
-        _endDate = DateTime.Parse(endDate);
-    }
-
-    [When(@"I submit the booking form")]
-    public void WhenISubmitTheBookingForm()
-    {
-        if (_roomAvailable && _endDate > _startDate)
-        {
-            _bookingCreated = true;
-        }
-        else
-        {
-            _bookingCreated = false;
-        }
-    }
-
-    [Then(@"the booking should be created successfully")]
-    public void ThenTheBookingShouldBeCreatedSuccessfully()
-    {
-        _bookingCreated.Should().BeTrue("the booking should succeed if a room was available and dates were valid");
+        Assert.Equal(expectedSum, sum);
     }
 }

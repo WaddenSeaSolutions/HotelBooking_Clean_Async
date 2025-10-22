@@ -2,7 +2,7 @@ using Reqnroll;
 using System;
 using FluentAssertions;
 
-namespace CucumberTests.StepDefinitions;
+namespace CucumberXunitTest.StepDefinitions;
 
 [Binding]
 public sealed class BookingStepDefinitions

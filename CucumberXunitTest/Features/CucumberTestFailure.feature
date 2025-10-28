@@ -1,10 +1,9 @@
 Feature: CreateBookingFailure
 
     @negative @booking
-    Scenario: Fail to create a booking when no rooms are available
-        Given no rooms are available from "today + 10" to "today + 15"
+    Scenario: Fail to create a booking when no rooms are available next month
+        Given no rooms are available next month
         When I navigate to the Create Booking page
-        And I enter the start date "today + 10"
-        And I enter the end date "today + 15"
+        And I enter the start and end dates for next month
         And I submit the booking form
         Then the booking should not be created

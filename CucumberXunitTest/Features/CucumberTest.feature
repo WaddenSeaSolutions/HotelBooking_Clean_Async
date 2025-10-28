@@ -4,10 +4,9 @@ As a hotel staff member
 I want to be able to create bookings for specific dates
 
     @positive @booking
-    Scenario: Successfully create a booking with available rooms
-        Given at least one room is available from "today + 7" to "today + 12"
+    Scenario: Successfully create a booking for next week
+        Given at least one room is available for next week
         When I navigate to the Create Booking page
-        And I enter the start date "today + 7"
-        And I enter the end date "today + 12"
+        And I enter the start and end dates for next week
         And I submit the booking form
         Then the booking should be created successfully

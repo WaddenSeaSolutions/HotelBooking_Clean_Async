@@ -1,7 +1,6 @@
 using Reqnroll;
 using System;
 using FluentAssertions;
-using System.Text.RegularExpressions;
 
 namespace CucumberXunitTest.StepDefinitions;
 
@@ -13,41 +12,21 @@ public sealed class BookingStepDefinitions
     private bool _roomAvailable;
     private bool _bookingCreated;
 
-    // Utility: parse relative or absolute date expressions
-    private DateTime ParseDateExpression(string expression)
+    [Given(@"at least one room is available for next week")]
+    public void GivenAtLeastOneRoomIsAvailableForNextWeek()
     {
-        expression = expression.Trim().ToLower();
-
-        if (expression.StartsWith("today"))
-        {
-            var match = Regex.Match(expression, @"today\s*([\+\-])\s*(\d+)");
-            if (match.Success)
-            {
-                int offset = int.Parse(match.Groups[2].Value);
-                return match.Groups[1].Value == "+" 
-                    ? DateTime.Today.AddDays(offset) 
-                    : DateTime.Today.AddDays(-offset);
-            }
-            return DateTime.Today;
-        }
-
-        // fallback to direct date parsing
-        return DateTime.Parse(expression);
-    }
-
-    [Given(@"at least one room is available from ""(.*)"" to ""(.*)""")]
-    public void GivenAtLeastOneRoomIsAvailableFromTo(string startDate, string endDate)
-    {
-        _startDate = ParseDateExpression(startDate);
-        _endDate = ParseDateExpression(endDate);
+        _startDate = DateTime.Today.AddDays(7);
+        _endDate = DateTime.Today.AddDays(12);
         _roomAvailable = true;
     }
 
-    [Given(@"no rooms are available from ""(.*)"" to ""(.*)""")]
-    public void GivenNoRoomsAreAvailableFromTo(string startDate, string endDate)
+    [Given(@"no rooms are available next month")]
+    public void GivenNoRoomsAreAvailableNextMonth()
     {
-        _startDate = ParseDateExpression(startDate);
-        _endDate = ParseDateExpression(endDate);
+        _startDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
+            .AddMonths(1)
+            .AddDays(5);
+        _endDate = _startDate.AddDays(5);
         _roomAvailable = false;
     }
 
@@ -57,16 +36,16 @@ public sealed class BookingStepDefinitions
         // Simulate navigation
     }
 
-    [When(@"I enter the start date ""(.*)""")]
-    public void WhenIEnterTheStartDate(string startDate)
+    [When(@"I enter the start and end dates for next week")]
+    public void WhenIEnterTheStartAndEndDatesForNextWeek()
     {
-        _startDate = ParseDateExpression(startDate);
+        // Normally handled via UI, but we reuse the same values
     }
 
-    [When(@"I enter the end date ""(.*)""")]
-    public void WhenIEnterTheEndDate(string endDate)
+    [When(@"I enter the start and end dates for next month")]
+    public void WhenIEnterTheStartAndEndDatesForNextMonth()
     {
-        _endDate = ParseDateExpression(endDate);
+        // Normally handled via UI, but we reuse the same values
     }
 
     [When(@"I submit the booking form")]

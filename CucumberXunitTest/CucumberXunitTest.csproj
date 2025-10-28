@@ -16,8 +16,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Content Include="CucumberTest.feature" />
-      <Content Include="Features\Calculator.feature" />
+      <Content Include="Features\CucumberTest.feature" />
+      <Content Include="Features\CucumberTestFailure.feature" />
     </ItemGroup>
 
     <ItemGroup>

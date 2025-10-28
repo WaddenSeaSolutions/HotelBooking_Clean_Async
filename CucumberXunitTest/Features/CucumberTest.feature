@@ -5,9 +5,9 @@ I want to be able to create bookings for specific dates
 
     @positive @booking
     Scenario: Successfully create a booking with available rooms
-        Given at least one room is available from "2025-10-15" to "2025-10-20"
+        Given at least one room is available from "today + 7" to "today + 12"
         When I navigate to the Create Booking page
-        And I enter the start date "2025-10-15"
-        And I enter the end date "2025-10-20"
+        And I enter the start date "today + 7"
+        And I enter the end date "today + 12"
         And I submit the booking form
         Then the booking should be created successfully
